@@ -33,8 +33,14 @@ contract SimpleWallet is Ownable {
      */
     event NewAccountAllowed(address indexed _allowedAccount);
 
-    /* Structs */
+    /**
+     * @dev Emitted when an allowed account withdraw funds from the contract.
+     * @param _destination The allowed account that withdraw the funds.
+     * @param _amount The amount of funds that the allowed account has withdrawn.
+     */
+    event Withdrawal(address indexed _destination, uint _amount);
 
+    /* Structs */
 
     /* Storage */
 
@@ -64,6 +70,17 @@ contract SimpleWallet is Ownable {
      */
     function isAllowed(address _address) public view returns (bool) {
         return allowedAccounts[_address];
+    }
+
+    /**
+     * @dev
+     */
+    function withdrawFunds(uint _amountToWithdraw) public payable {
+        require(isAllowed(msg.sender), "You are not allowed to withdraw funds");
+        require(address(this).balance >= _amountToWithdraw, "There are no sufficient funds");
+
+        payable(msg.sender).transfer(_amountToWithdraw);
+        emit Withdrawal(msg.sender, _amountToWithdraw);
     }
 
 }

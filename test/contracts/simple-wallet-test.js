@@ -28,28 +28,100 @@ describe('SimpleWallet Contract', function () {
 
             const tx = await externalAccount.sendTransaction({
                 to: simpleWalletDeployed.address,
-                value: ethers.utils.parseEther("0.1")
+                value: ethers.utils.parseEther('0.1')
             });
 
             const contractBalance = await ethersProvider.getBalance(simpleWalletDeployed.address);
             expect(ethers.utils.formatEther(contractBalance)).to.equal('0.1');
             await expect(tx)
                 .to.emit(simpleWalletDeployed, 'FundsReceived')
-                .withArgs(externalAccount.address, ethers.utils.parseEther("0.1"));
+                .withArgs(externalAccount.address, ethers.utils.parseEther('0.1'));
         });
     });
 
     describe('Allowance', function() {
-        it('should set one address allowed to withdraw funds', async function() {
+        it('should set one address allowed to withdraw unlimited funds', async function() {
             [owner, allowedAccount] = await ethers.getSigners();
             
-            const tx = await simpleWalletDeployed.addAllowedAccount(allowedAccount.address);
+            const tx = await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 0, 0, 0);
 
             await expect(tx)
                 .to.emit(simpleWalletDeployed, 'NewAccountAllowed')
-                .withArgs(allowedAccount.address);
+                .withArgs(allowedAccount.address, 0, 0, 0);
             expect(await simpleWalletDeployed.isAllowed(allowedAccount.address))
                 .to.equal(true);
+        });
+
+        it('should set one address allowed to withdraw once by day unlimited funds', async function() {
+            [owner, allowedAccount] = await ethers.getSigners();
+            
+            const tx = await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 1, 1, 0);
+
+            await expect(tx)
+                .to.emit(simpleWalletDeployed, 'NewAccountAllowed')
+                .withArgs(allowedAccount.address, 1, 1, 0);
+            expect(await simpleWalletDeployed.isAllowed(allowedAccount.address))
+                .to.equal(true);
+        });
+
+        it('should set one address allowed to withdraw twice by month unlimited funds', async function() {
+            [owner, allowedAccount] = await ethers.getSigners();
+            
+            const tx = await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 2, 2, 0);
+
+            await expect(tx)
+                .to.emit(simpleWalletDeployed, 'NewAccountAllowed')
+                .withArgs(allowedAccount.address, 2, 2, 0);
+            expect(await simpleWalletDeployed.isAllowed(allowedAccount.address))
+                .to.equal(true);
+        });
+
+        it('should set one address allowed to withdraw twice by year unlimited funds', async function() {
+            [owner, allowedAccount] = await ethers.getSigners();
+            
+            const tx = await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 2, 3, 0);
+
+            await expect(tx)
+                .to.emit(simpleWalletDeployed, 'NewAccountAllowed')
+                .withArgs(allowedAccount.address, 2, 3, 0);
+            expect(await simpleWalletDeployed.isAllowed(allowedAccount.address))
+                .to.equal(true);
+        });
+
+        it('should set one address allowed to withdraw twice by year with cap 0.1eth', async function() {
+            [owner, allowedAccount] = await ethers.getSigners();
+            const cap = ethers.utils.parseEther('0.1')
+            const tx = await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 2, 3, cap);
+
+            await expect(tx)
+                .to.emit(simpleWalletDeployed, 'NewAccountAllowed')
+                .withArgs(allowedAccount.address, 2, 3, cap);
+            expect(await simpleWalletDeployed.isAllowed(allowedAccount.address))
+                .to.equal(true);
+        });
+
+        it('should fail if unit time is wrong', async function() {
+            [owner, allowedAccount] = await ethers.getSigners();
+            const cap = ethers.utils.parseEther('0.1')
+            const tx = simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 2, 4, cap);
+            const messageExpected = 'The withdrawal unit time must be 0(unlimited), 1(daily), 2(monthly) or 3(yearly).';
+            await expect(tx).to.be.revertedWith(messageExpected);
+        });
+
+        it('should fail if quantity is set without unit time', async function() {
+            [owner, allowedAccount] = await ethers.getSigners();
+            const cap = ethers.utils.parseEther('0.1')
+            const tx = simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 2, 0, cap);
+            const messageExpected = 'The withdrawal unit time and quantity must be both unlimited or both defined';
+            await expect(tx).to.be.revertedWith(messageExpected);
+        });
+
+        it('should fail if unit time is set without quantity', async function() {
+            [owner, allowedAccount] = await ethers.getSigners();
+            const cap = ethers.utils.parseEther('0.1')
+            const tx = simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 0, 2, cap);
+            const messageExpected = 'The withdrawal unit time and quantity must be both unlimited or both defined';
+            await expect(tx).to.be.revertedWith(messageExpected);
         });
 
         it('should fail if an external account try to set one address as allowed', async function() {
@@ -57,8 +129,8 @@ describe('SimpleWallet Contract', function () {
             
             const tx = simpleWalletDeployed
                                 .connect(externaAccount)
-                                .addAllowedAccount(allowedAccount.address);
-
+                                .addAllowedAccount(allowedAccount.address, 0, 0, 0);
+    
             await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
         });
 
@@ -79,7 +151,7 @@ describe('SimpleWallet Contract', function () {
 
         beforeEach(async function() {
             [owner, allowedAccount, notAllowedAccount] = await ethers.getSigners();
-            funds = ethers.utils.parseEther("0.1");
+            funds = ethers.utils.parseEther('0.1');
             await allowedAccount.sendTransaction({
                 to: simpleWalletDeployed.address,
                 value: funds
@@ -95,7 +167,7 @@ describe('SimpleWallet Contract', function () {
 
         it('should withdraw all the funds', async function() {
             const allowedAccountInitialBalance = await ethersProvider.getBalance(allowedAccount.address);
-            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address);
+            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 0, 0, 0);
             const tx = await simpleWalletDeployed.connect(allowedAccount).withdrawFunds(funds);
 
             await expect(tx)
@@ -108,11 +180,19 @@ describe('SimpleWallet Contract', function () {
         });
 
         it('should fail because the wallet has no sufficient funds', async function() {
-            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address);
-            const fundsToWithdraw = ethers.utils.parseEther("0.2");
+            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 0, 0, 0);
+            const fundsToWithdraw = ethers.utils.parseEther('0.2');
             const tx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
 
             await expect(tx).to.be.revertedWith('There are no sufficient funds');
+        });
+
+        it.skip('should fail because the withdrawal amount has exceed allowed cap', async function() {
+            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 0, 0, ethers.utils.parseEther('0.005'));
+            const fundsToWithdraw = ethers.utils.parseEther('0.1');
+            const tx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+
+            await expect(tx).to.be.revertedWith('Withdrawal amount exceed the allowed cap');
         });
       
     });

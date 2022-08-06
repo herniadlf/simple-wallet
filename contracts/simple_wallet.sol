@@ -23,10 +23,11 @@ contract SimpleWallet is Ownable {
     enum UNIT_TIME {UNLIMITED, DAILY, MONTHLY, YEARLY}
 
     struct AllowedAccount {
-        uint _withdrawalCap; // The maximum amount that can be withdrawed in each operation. 0 means unlimited.
-        uint96 _withdrawalQuantity; // The amount of withdrawal operations that can be performed per unit time. 0 means unlimited.
-        UNIT_TIME _withdrawalUnitTime; // The unit time. 
-        uint64 _lastWithdrawalTime; // The last withdrawal time. Used to calculate withdrawal rules.
+        uint withdrawalCap; // The maximum amount that can be withdrawed in each operation. 0 means unlimited.   
+        uint withdrawalUnitTimeMultiplier; // The unit time multiplier (1 day, 1 month or 1 year). 
+        uint withdrawalQuantity; // The amount of withdrawal operations that can be performed per unit time. 0 means unlimited.
+        uint withdrawalCooldown; // The last withdrawal time. Used to calculate withdrawal rules.
+        uint withdrawalCount; // Count the withdrawal operations. Used to calculate withdrawal rules. 
     }
 
     /* Storage */
@@ -45,11 +46,10 @@ contract SimpleWallet is Ownable {
 
     /**
      * @dev Emitted when a new address is declared for withdrawing funds from the contract.
-     * @param _allowedAccount The new address that is allowed to withdraw funds.
      */
     event NewAccountAllowed(address indexed _allowedAccount, 
-                            uint96 _withdrawalQuantity, 
-                            uint96 _withdrawalUnitTime,
+                            uint _withdrawalUnitTime,
+                            uint _withdrawalQuantity, 
                             uint _withdrawalCap);
 
     /**
@@ -83,14 +83,22 @@ contract SimpleWallet is Ownable {
      * @param _withdrawalCap The max amount of funds that can be withdraw each time. 0 for unlimited.
      */
     function addAllowedAccount(address _allowedAccount,
-                                uint96 _withdrawalQuantity, 
-                                uint96 _withdrawalUnitTime,
+                                uint _withdrawalQuantity, 
+                                uint _withdrawalUnitTime,
                                 uint _withdrawalCap) onlyOwner public {
         require(_withdrawalUnitTime <= 3, 'The withdrawal unit time must be 0(unlimited), 1(daily), 2(monthly) or 3(yearly).');
         require((_withdrawalUnitTime == 0 && _withdrawalQuantity == 0) || 
                 (_withdrawalUnitTime > 0 && _withdrawalQuantity > 0), 
                 'The withdrawal unit time and quantity must be both unlimited or both defined');
-        allowedAccounts[_allowedAccount] = AllowedAccount(_withdrawalCap, _withdrawalUnitTime, UNIT_TIME(_withdrawalQuantity), 0);
+        uint multiplier;
+        if (_withdrawalUnitTime == 1) {
+            multiplier = 1 days;
+        } else if (_withdrawalUnitTime == 2) {
+            multiplier = 4 weeks;
+        } else if (_withdrawalUnitTime == 3) {
+            multiplier = 48 weeks;
+        }
+        allowedAccounts[_allowedAccount] = AllowedAccount(_withdrawalCap, multiplier, _withdrawalQuantity, 0, 0);
         allowedAccountValid[_allowedAccount] = true;
         emit NewAccountAllowed(_allowedAccount, _withdrawalQuantity, _withdrawalUnitTime, _withdrawalCap);
     }
@@ -109,6 +117,15 @@ contract SimpleWallet is Ownable {
      */
     function withdrawFunds(uint _amountToWithdraw) onlyAllowed public payable {
         require(address(this).balance >= _amountToWithdraw, 'There are no sufficient funds');
+        AllowedAccount storage allowedAccount = allowedAccounts[msg.sender];
+        require(allowedAccount.withdrawalCap == 0 || allowedAccount.withdrawalCap >= _amountToWithdraw, 'Withdrawal amount exceed the allowed cap');
+        require(allowedAccount.withdrawalQuantity == 0 || 
+                    allowedAccount.withdrawalCount < allowedAccount.withdrawalQuantity ||
+                    block.timestamp > allowedAccount.withdrawalCooldown, 'Invalid withdrawal rules');
+        if (allowedAccount.withdrawalQuantity > 0 && allowedAccount.withdrawalQuantity == allowedAccount.withdrawalCount) {
+            allowedAccount.withdrawalCooldown = block.timestamp + allowedAccount.withdrawalUnitTimeMultiplier;
+            allowedAccount.withdrawalCount = 1;
+        }
 
         payable(msg.sender).transfer(_amountToWithdraw);
         emit Withdrawal(msg.sender, _amountToWithdraw);

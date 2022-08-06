@@ -187,7 +187,7 @@ describe('SimpleWallet Contract', function () {
             await expect(tx).to.be.revertedWith('There are no sufficient funds');
         });
 
-        it.skip('should fail because the withdrawal amount has exceed allowed cap', async function() {
+        it('should fail because the withdrawal amount has exceed allowed cap', async function() {
             await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 0, 0, ethers.utils.parseEther('0.005'));
             const fundsToWithdraw = ethers.utils.parseEther('0.1');
             const tx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);

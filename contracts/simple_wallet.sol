@@ -47,10 +47,7 @@ contract SimpleWallet is Ownable {
     /**
      * @dev Emitted when a new address is declared for withdrawing funds from the contract.
      */
-    event NewAccountAllowed(address indexed _allowedAccount, 
-                            uint _withdrawalUnitTime,
-                            uint _withdrawalQuantity, 
-                            uint _withdrawalCap);
+    event NewAccountAllowed(address indexed _allowedAccount, uint _withdrawalUnitTime, uint _withdrawalQuantity, uint _withdrawalCap);
 
     /**
      * @dev Emitted when an allowed account withdraw funds from the contract.
@@ -82,14 +79,10 @@ contract SimpleWallet is Ownable {
      * @param _withdrawalUnitTime The unit time of withdrawal. 0: unlimited, 1: by day, 2: by month, 3: by year.
      * @param _withdrawalCap The max amount of funds that can be withdraw each time. 0 for unlimited.
      */
-    function addAllowedAccount(address _allowedAccount,
-                                uint _withdrawalQuantity, 
-                                uint _withdrawalUnitTime,
-                                uint _withdrawalCap) onlyOwner public {
+    function addAllowedAccount(address _allowedAccount, uint _withdrawalQuantity, uint _withdrawalUnitTime, uint _withdrawalCap) onlyOwner public {
         require(_withdrawalUnitTime <= 3, 'The withdrawal unit time must be 0(unlimited), 1(daily), 2(monthly) or 3(yearly).');
-        require((_withdrawalUnitTime == 0 && _withdrawalQuantity == 0) || 
-                (_withdrawalUnitTime > 0 && _withdrawalQuantity > 0), 
-                'The withdrawal unit time and quantity must be both unlimited or both defined');
+        require((_withdrawalUnitTime == 0 && _withdrawalQuantity == 0) || (_withdrawalUnitTime > 0 && _withdrawalQuantity > 0), 'The withdrawal unit time and quantity must be both unlimited or both defined');
+        
         uint multiplier;
         if (_withdrawalUnitTime == 1) {
             multiplier = 1 days;
@@ -98,6 +91,7 @@ contract SimpleWallet is Ownable {
         } else if (_withdrawalUnitTime == 3) {
             multiplier = 48 weeks;
         }
+
         allowedAccounts[_allowedAccount] = AllowedAccount(_withdrawalCap, multiplier, _withdrawalQuantity, 0, 0);
         allowedAccountValid[_allowedAccount] = true;
         emit NewAccountAllowed(_allowedAccount, _withdrawalQuantity, _withdrawalUnitTime, _withdrawalCap);
@@ -122,13 +116,17 @@ contract SimpleWallet is Ownable {
         require(allowedAccount.withdrawalQuantity == 0 || 
                     allowedAccount.withdrawalCount < allowedAccount.withdrawalQuantity ||
                     block.timestamp > allowedAccount.withdrawalCooldown, 'Invalid withdrawal rules');
-        if (allowedAccount.withdrawalQuantity > 0 && allowedAccount.withdrawalQuantity == allowedAccount.withdrawalCount) {
-            allowedAccount.withdrawalCooldown = block.timestamp + allowedAccount.withdrawalUnitTimeMultiplier;
-            allowedAccount.withdrawalCount = 1;
-        }
-
+        // If the withdrawalQuantity is defined
+        if (allowedAccount.withdrawalQuantity > 0) {
+            // And is the first withdrawal or withdrawalCount has reach the withdrawalQuantity, we set the cooldown.
+            if (allowedAccount.withdrawalCount == 0 || allowedAccount.withdrawalCount == allowedAccount.withdrawalQuantity) {
+                allowedAccount.withdrawalCooldown = block.timestamp + allowedAccount.withdrawalUnitTimeMultiplier;
+                allowedAccount.withdrawalCount = 0;
+            }
+        } 
+        allowedAccount.withdrawalCount = allowedAccount.withdrawalCount + 1;
+        
         payable(msg.sender).transfer(_amountToWithdraw);
         emit Withdrawal(msg.sender, _amountToWithdraw);
     }
-
 }

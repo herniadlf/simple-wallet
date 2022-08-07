@@ -194,6 +194,105 @@ describe('SimpleWallet Contract', function () {
 
             await expect(tx).to.be.revertedWith('Withdrawal amount exceed the allowed cap');
         });
+
+        it('should fail because the withdrawal quantity has reach the limit', async function() {
+            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 1, 1, ethers.utils.parseEther('0.1'));
+            const fundsToWithdraw = ethers.utils.parseEther('0.05');
+            await simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            const secondTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+
+            await expect(secondTx).to.be.revertedWith('Invalid withdrawal rules');
+        });
+
+        it('should withdraw a second time if one day has pass', async function() {
+            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 1, 1, ethers.utils.parseEther('0.1'));
+            const fundsToWithdraw = ethers.utils.parseEther('0.05');
+            const firstTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(firstTx)
+                .to.emit(simpleWalletDeployed, 'Withdrawal')
+                .withArgs(allowedAccount.address, fundsToWithdraw);
+            
+            const secondTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(secondTx).to.be.revertedWith('Invalid withdrawal rules');
+            // Pass one day..    
+            const oneDay = 60*60*24;
+            await ethers.provider.send('evm_increaseTime', [oneDay]);
+            await ethers.provider.send('evm_mine');
+            // And try again
+            const thirdTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(thirdTx)
+                .to.emit(simpleWalletDeployed, 'Withdrawal')
+                .withArgs(allowedAccount.address, fundsToWithdraw);
+        });
+
+        it('should withdraw a second time if one month has pass', async function() {
+            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 1, 2, ethers.utils.parseEther('0.1'));
+            const fundsToWithdraw = ethers.utils.parseEther('0.05');
+            const firstTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(firstTx)
+                .to.emit(simpleWalletDeployed, 'Withdrawal')
+                .withArgs(allowedAccount.address, fundsToWithdraw);
+            
+            const secondTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(secondTx).to.be.revertedWith('Invalid withdrawal rules');
+            // Pass one day..    
+            const oneDay = 60*60*24;
+            await ethers.provider.send('evm_increaseTime', [oneDay]);
+            await ethers.provider.send('evm_mine');
+            // And try again
+            const thirdTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(thirdTx).to.be.revertedWith('Invalid withdrawal rules');
+            // Now pass one month
+            const oneMonth = 4*7*60*60*24;
+            await ethers.provider.send('evm_increaseTime', [oneMonth]);
+            await ethers.provider.send('evm_mine');
+            const forthTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(forthTx)
+                .to.emit(simpleWalletDeployed, 'Withdrawal')
+                .withArgs(allowedAccount.address, fundsToWithdraw);
+        });
+
+        it('should withdraw a second time if one year has pass', async function() {
+            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 1, 2, ethers.utils.parseEther('0.1'));
+            const fundsToWithdraw = ethers.utils.parseEther('0.05');
+            const firstTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(firstTx)
+                .to.emit(simpleWalletDeployed, 'Withdrawal')
+                .withArgs(allowedAccount.address, fundsToWithdraw);
+            
+            const secondTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(secondTx).to.be.revertedWith('Invalid withdrawal rules');
+            // Pass one year..    
+            const oneYear = 12*4*7*60*60*24;
+            await ethers.provider.send('evm_increaseTime', [oneYear]);
+            await ethers.provider.send('evm_mine');
+            // And try again
+            const thirdTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(thirdTx)
+                .to.emit(simpleWalletDeployed, 'Withdrawal')
+                .withArgs(allowedAccount.address, fundsToWithdraw);
+        });
+
+        it('should withdraw a second time if one day has pass and then fail again', async function() {
+            await simpleWalletDeployed.addAllowedAccount(allowedAccount.address, 1, 1, ethers.utils.parseEther('0.1'));
+            const fundsToWithdraw = ethers.utils.parseEther('0.01');
+            const firstTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(firstTx)
+                .to.emit(simpleWalletDeployed, 'Withdrawal')
+                .withArgs(allowedAccount.address, fundsToWithdraw);
+            
+            // Pass one day..    
+            const oneDay = 60*60*24;
+            await ethers.provider.send('evm_increaseTime', [oneDay]);
+            await ethers.provider.send('evm_mine');
+            const secondTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(secondTx)
+            .to.emit(simpleWalletDeployed, 'Withdrawal')
+            .withArgs(allowedAccount.address, fundsToWithdraw);
+            
+            const thirdTx = simpleWalletDeployed.connect(allowedAccount).withdrawFunds(fundsToWithdraw);
+            await expect(thirdTx).to.be.revertedWith('Invalid withdrawal rules');
+        });
       
     });
 

@@ -13,3 +13,9 @@
 - Restrict the functions to specific user-roles (owner, user)
 
 - Re-Use existing smart contracts which are already audited to the greatest extent
+
+## Local development
+
+Install hardhat with `npm install --save-dev hardhat`.
+
+Run test with `npx hardhat test`
